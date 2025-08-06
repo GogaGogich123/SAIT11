@@ -112,20 +112,17 @@ const HomePage: React.FC = () => {
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
-      <section ref={heroRef} className="relative overflow-hidden section-padding">
-        {/* Background */}
+      <section ref={heroRef} className="relative overflow-hidden section-padding hero-bg">
+        {/* Modern Particle Background */}
         <div className="absolute inset-0">
           <AnimatedSVGBackground />
         </div>
         
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/95 via-blue-900/95 to-slate-800/95 z-10"></div>
-        
-        {/* Smooth transition to next section */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-900/50 z-20"></div>
+        {/* Overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-slate-900/40 to-slate-900/60 z-10"></div>
         
         <motion.div 
-          className="relative container-custom z-30"
+          className="relative container-custom z-20"
           style={{ y, opacity }}
         >
           <motion.div
@@ -189,21 +186,14 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section ref={statsRef} className="section-padding relative overflow-hidden">
-        {/* Smooth transition from previous section */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-900/50 to-transparent z-10"></div>
-        
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900/50 to-slate-800"></div>
-        
-        {/* Smooth transition to next section */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-800/50 z-10"></div>
+      <section ref={statsRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900/50 to-slate-800">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20"></div>
         
         {/* Decorative Elements */}
         <div className="absolute top-10 left-10 w-20 h-20 bg-blue-500/10 rounded-full blur-xl"></div>
         <div className="absolute bottom-10 right-10 w-32 h-32 bg-purple-500/10 rounded-full blur-xl"></div>
         
-        <div className="relative container-custom z-20">
+        <div className="relative container-custom">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={statsInView ? { opacity: 1, y: 0 } : {}}
@@ -244,21 +234,14 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Features Section */}
-      <section ref={featuresRef} className="section-padding relative overflow-hidden">
-        {/* Smooth transition from previous section */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-800/50 to-transparent z-10"></div>
-        
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-blue-800/30 to-slate-900"></div>
-        
-        {/* Smooth transition to next section */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-900/50 z-10"></div>
+      <section ref={featuresRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-800 via-blue-800/30 to-slate-900">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 to-purple-900/10"></div>
         
         {/* Animated Background Elements */}
         <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-full blur-3xl floating"></div>
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-full blur-3xl floating" style={{ animationDelay: '2s' }}></div>
         
-        <div className="relative container-custom z-20">
+        <div className="relative container-custom">
           <motion.div
             variants={fadeInUp}
             initial="hidden"
@@ -304,21 +287,14 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Achievements Section */}
-      <section ref={achievementsRef} className="section-padding relative overflow-hidden">
-        {/* Smooth transition from previous section */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-900/50 to-transparent z-10"></div>
-        
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-800"></div>
-        
-        {/* Smooth transition to next section */}
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-blue-600/30 z-10"></div>
+      <section ref={achievementsRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-800">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20"></div>
         
         {/* Decorative Elements */}
         <div className="absolute top-20 right-20 w-40 h-40 bg-purple-500/10 rounded-full blur-2xl floating"></div>
         <div className="absolute bottom-20 left-20 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl floating" style={{ animationDelay: '3s' }}></div>
         
-        <div className="relative container-custom z-20">
+        <div className="relative container-custom">
           <motion.div
             variants={fadeInUp}
             initial="hidden"
@@ -364,17 +340,13 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="section-padding relative overflow-hidden">
-        {/* Smooth transition from previous section */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-blue-600/30 to-transparent z-10"></div>
-        
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800"></div>
+      <section className="section-padding relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/80 via-purple-600/80 to-blue-800/80"></div>
         
         {/* Animated Background */}
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 opacity-80" style={{ backgroundSize: '400% 400%', animation: 'gradientMove 8s ease infinite' }}></div>
         
-        <div className="relative max-w-4xl mx-auto text-center container-custom z-20">
+        <div className="relative max-w-4xl mx-auto text-center container-custom">
           <motion.div
             variants={scaleIn}
             initial="hidden"
