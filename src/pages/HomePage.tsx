@@ -119,7 +119,10 @@ const HomePage: React.FC = () => {
         </div>
         
         {/* Overlay for better text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-slate-900/40 to-slate-900/60 z-10"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-slate-900/40 to-slate-900/80 z-10"></div>
+        
+        {/* Smooth transition to next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-900 z-20"></div>
         
         <motion.div 
           className="relative container-custom z-20"
@@ -187,7 +190,13 @@ const HomePage: React.FC = () => {
 
       {/* Stats Section */}
       <section ref={statsRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900/50 to-slate-800">
+        {/* Smooth transition from previous section */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-900 to-transparent"></div>
+        
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20"></div>
+        
+        {/* Smooth transition to next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-800 z-10"></div>
         
         {/* Decorative Elements */}
         <div className="absolute top-10 left-10 w-20 h-20 bg-blue-500/10 rounded-full blur-xl"></div>
@@ -235,7 +244,13 @@ const HomePage: React.FC = () => {
 
       {/* Features Section */}
       <section ref={featuresRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-800 via-blue-800/30 to-slate-900">
+        {/* Smooth transition from previous section */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-800 to-transparent"></div>
+        
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 to-purple-900/10"></div>
+        
+        {/* Smooth transition to next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-slate-900 z-10"></div>
         
         {/* Animated Background Elements */}
         <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-full blur-3xl floating"></div>
@@ -288,7 +303,13 @@ const HomePage: React.FC = () => {
 
       {/* Achievements Section */}
       <section ref={achievementsRef} className="section-padding relative overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-800">
+        {/* Smooth transition from previous section */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-slate-900 to-transparent"></div>
+        
         <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20"></div>
+        
+        {/* Smooth transition to next section */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent via-slate-800/50 to-blue-600 z-10"></div>
         
         {/* Decorative Elements */}
         <div className="absolute top-20 right-20 w-40 h-40 bg-purple-500/10 rounded-full blur-2xl floating"></div>
@@ -341,6 +362,9 @@ const HomePage: React.FC = () => {
 
       {/* CTA Section */}
       <section className="section-padding relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800">
+        {/* Smooth transition from previous section */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-blue-600 to-transparent"></div>
+        
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/80 via-purple-600/80 to-blue-800/80"></div>
         
         {/* Animated Background */}
