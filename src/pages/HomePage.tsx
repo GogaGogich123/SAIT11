@@ -114,10 +114,12 @@ const HomePage: React.FC = () => {
       {/* Hero Section */}
       <section ref={heroRef} className="relative overflow-hidden section-padding hero-bg">
         {/* Modern Particle Background */}
-        <AnimatedSVGBackground />
+        <div className="absolute inset-0">
+          <AnimatedSVGBackground />
+        </div>
         
         {/* Overlay for better text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/10 to-black/30 z-10"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/20 via-slate-900/40 to-slate-900/60 z-10"></div>
         
         <motion.div 
           className="relative container-custom z-20"

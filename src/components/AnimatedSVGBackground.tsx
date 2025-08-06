@@ -2,7 +2,7 @@ import React from 'react';
 
 const AnimatedSVGBackground: React.FC = () => {
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ zIndex: 1 }}>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 1 }}>
       <svg 
         version="1.1" 
         id="home-anim" 
@@ -28,48 +28,59 @@ const AnimatedSVGBackground: React.FC = () => {
 
               #red {
                 fill: none;
-                opacity: 0.15;
-                stroke: #CE1B5F;
-                stroke-width: 12;
+                opacity: 0.08;
+                stroke: #3B82F6;
+                stroke-width: 8;
                 stroke-miterlimit: 10;
-                animation: show 4s ease-in-out infinite;
+                animation: show 6s ease-in-out infinite;
               }
 
               #blue {
                 fill: none;
-                opacity: 0.15;
-                stroke: #06A1C4;
-                stroke-width: 12;
+                opacity: 0.06;
+                stroke: #60A5FA;
+                stroke-width: 6;
                 stroke-miterlimit: 10;
-                animation: show 4s ease-in-out infinite;
+                animation: show 8s ease-in-out infinite;
+                animation-delay: 1s;
               }
 
               #light-blue {
                 fill: none;
-                opacity: 0.15;
-                stroke: #06A1C4;
-                stroke-width: 6;
+                opacity: 0.04;
+                stroke: #93C5FD;
+                stroke-width: 4;
                 stroke-miterlimit: 10;
-                stroke-dasharray: 200;
-                stroke-dashoffset: 800;
-                animation: draw 4s ease-in-out infinite;
+                stroke-dasharray: 150;
+                stroke-dashoffset: 600;
+                animation: draw 10s ease-in-out infinite;
+                animation-delay: 2s;
               }
 
               @keyframes draw {
-                to {
-                  stroke-dashoffset: 0;
+                0% { 
+                  stroke-dashoffset: 600; 
+                  opacity: 0.04; 
+                }
+                50% { 
+                  stroke-dashoffset: 0; 
+                  opacity: 0.08; 
+                }
+                100% { 
+                  stroke-dashoffset: -600; 
+                  opacity: 0.04; 
                 }
               }
 
               @keyframes show {
                 0% {
-                  opacity: 0.15;
+                  opacity: 0.04;
                 }
                 50% {
-                  opacity: 0.2;
+                  opacity: 0.08;
                 }
                 100% {
-                  opacity: 0.15;
+                  opacity: 0.04;
                 }
               }
             `}
@@ -177,6 +188,16 @@ const AnimatedSVGBackground: React.FC = () => {
             <line x1="1662.1" y1="-213.4" x2="1353" y2="95.6"/>
           </g>
         </g>
+        
+        {/* Дополнительные декоративные элементы для лучшей интеграции */}
+        <defs>
+          <radialGradient id="fadeGradient" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(59, 130, 246, 0.1)" />
+            <stop offset="70%" stopColor="rgba(59, 130, 246, 0.05)" />
+            <stop offset="100%" stopColor="rgba(59, 130, 246, 0)" />
+          </radialGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#fadeGradient)" opacity="0.3" />
       </svg>
     </div>
   );

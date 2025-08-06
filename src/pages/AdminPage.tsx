@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import ParticleBackground from '../components/ParticleBackground';
 import ModernBackground from '../components/ModernBackground';
+import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import { fadeInUp, staggerContainer, staggerItem } from '../utils/animations';
 
 const AdminPage: React.FC = () => {
@@ -545,8 +546,9 @@ const AdminPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen relative overflow-hidden"
     >
-      <ParticleBackground />
-      <ModernBackground />
+      <div className="absolute inset-0">
+        <AnimatedSVGBackground />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900/95 via-blue-900/95 to-slate-800/95 z-10"></div>
       
       <div className="relative z-20 section-padding">

@@ -5,6 +5,7 @@ import { LogIn, Shield, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ParticleBackground from '../components/ParticleBackground';
 import ModernBackground from '../components/ModernBackground';
+import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import { fadeInUp, scaleIn } from '../utils/animations';
 
 const LoginPage: React.FC = () => {
@@ -41,8 +42,9 @@ const LoginPage: React.FC = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen flex items-center justify-center relative overflow-hidden"
     >
-      <ParticleBackground />
-      <ModernBackground />
+      <div className="absolute inset-0">
+        <AnimatedSVGBackground />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900/95 via-blue-900/95 to-slate-800/95 z-10"></div>
       
       <div className="relative z-20 max-w-lg w-full mx-4">

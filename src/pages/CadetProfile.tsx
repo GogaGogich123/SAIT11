@@ -23,6 +23,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import ParticleBackground from '../components/ParticleBackground';
 import ModernBackground from '../components/ModernBackground';
+import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProgressBar from '../components/ProgressBar';
 import { 
@@ -158,8 +159,9 @@ const CadetProfile: React.FC = () => {
       exit={{ opacity: 0 }}
       className="min-h-screen relative overflow-hidden"
     >
-      <ParticleBackground />
-      <ModernBackground />
+      <div className="absolute inset-0">
+        <AnimatedSVGBackground />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900/95 via-blue-900/95 to-slate-800/95 z-10"></div>
       
       <div className="relative z-20 section-padding">
