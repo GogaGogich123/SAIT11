@@ -61,6 +61,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             cadetId: cadetData.id
           });
           return true;
+        } else if (cadetError && cadetError.code === 'PGRST116') {
+          // No cadet found for this auth user, fallback to mock login
+          return mockLogin(email, password);
         }
       }
 
