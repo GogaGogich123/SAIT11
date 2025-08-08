@@ -33,6 +33,8 @@ import {
   type Task,
   type News
 } from '../lib/supabase';
+import { addCadetByAdmin } from '../lib/supabase';
+import AddEditCadetModal from '../components/Admin/AddEditCadetModal';
 import { fadeInUp, staggerContainer, staggerItem } from '../utils/animations';
 
 interface AdminStats {
@@ -63,6 +65,7 @@ const AdminPage: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [modalType, setModalType] = useState<'cadet' | 'task' | 'news'>('cadet');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -119,6 +122,20 @@ const AdminPage: React.FC = () => {
   const closeModal = () => {
     setShowAddModal(false);
     setEditingItem(null);
+  };
+
+  const handleSaveCadet = async (cadetData: any) => {
+    try {
+      setIsSubmitting(true);
+      await addCadetByAdmin(cadetData);
+      await fetchAllData(); // Обновляем список кадетов
+      closeModal();
+    } catch (error) {
+      console.error('Error saving cadet:', error);
+      throw error; // Пробрасываем ошибку для обработки в модальном окне
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isAdmin) {
@@ -189,6 +206,15 @@ const AdminPage: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Add/Edit Cadet Modal */}
+      <AddEditCadetModal
+        isOpen={showAddModal && modalType === 'cadet'}
+        onClose={closeModal}
+        onSave={handleSaveCadet}
+        cadetData={editingItem}
+        isEditing={!!editingItem}
+      />
 
       {/* Recent Activity */}
       <div className="card-hover p-8">

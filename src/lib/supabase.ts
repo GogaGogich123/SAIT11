@@ -239,3 +239,28 @@ export const abandonTask = async (taskId: string, cadetId: string): Promise<void
   
   if (error) throw error;
 };
+
+// Admin functions
+export const addCadetByAdmin = async (cadetData: {
+  name: string;
+  email: string;
+  password: string;
+  platoon: string;
+  squad: number;
+  avatar_url?: string;
+}): Promise<void> => {
+  const { data, error } = await supabase.functions.invoke('create-cadet', {
+    body: cadetData
+  });
+
+  if (error) {
+    console.error('Edge function error:', error);
+    throw new Error(error.message || 'Ошибка при создании кадета');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return data;
+};
