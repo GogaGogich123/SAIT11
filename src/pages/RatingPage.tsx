@@ -1,114 +1,528 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { Search, Filter, Trophy, Medal, Target, Users, TrendingUp, TrendingDown } from 'lucide-react';
+import { 
+  Users, 
+  Award, 
+  BookOpen, 
+  Target,
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
+  Calendar,
+  Star,
+  Trophy,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Filter,
+  Search
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import ParticleBackground from '../components/ParticleBackground';
 import ModernBackground from '../components/ModernBackground';
 import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getCadets, getCadetScores, type Cadet, type Score } from '../lib/supabase';
+import { 
+  getCadets,
+  getTasks,
+  getNews,
+  type Cadet,
+  type Task,
+  type News
+} from '../lib/supabase';
+import { addCadetByAdmin } from '../lib/supabase';
+import AddEditCadetModal from '../components/Admin/AddEditCadetModal';
 import { fadeInUp, staggerContainer, staggerItem } from '../utils/animations';
 
-interface CadetWithScores extends Cadet {
-  scores: {
-    study: number;
-    discipline: number;
-    events: number;
-    total: number;
-  };
+interface AdminStats {
+  totalCadets: number;
+  totalTasks: number;
+  totalNews: number;
+  averageScore: number;
 }
 
-const RatingPage: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState<'total' | 'study' | 'discipline' | 'events'>('total');
-  const [selectedPlatoon, setSelectedPlatoon] = useState<string>('all');
-  const [selectedSquad, setSelectedSquad] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cadets, setCadets] = useState<CadetWithScores[]>([]);
+const AdminPage: React.FC = () => {
+  const { user, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'cadets' | 'tasks' | 'news' | 'analytics'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const platoons = ['7-1', '7-2', '8-1', '8-2', '9-1', '9-2', '10-1', '10-2', '11-1', '11-2'];
-  const squads = [1, 2, 3];
-
-  useEffect(() => {
-    const fetchCadets = async () => {
-      try {
-        setLoading(true);
-        const cadetsData = await getCadets();
-        
-        // Получаем баллы для каждого кадета
-        const cadetsWithScores = await Promise.all(
-          cadetsData.map(async (cadet) => {
-            try {
-              const scores = await getCadetScores(cadet.id);
-              return {
-                ...cadet,
-                scores: {
-                  study: scores?.study_score || 0,
-                  discipline: scores?.discipline_score || 0,
-                  events: scores?.events_score || 0,
-                  total: cadet.total_score
-                }
-              };
-            } catch (error) {
-              console.error(`Error fetching scores for cadet ${cadet.id}:`, error);
-              return {
-                ...cadet,
-                scores: {
-                  study: 0,
-                  discipline: 0,
-                  events: 0,
-                  total: cadet.total_score
-                }
-              };
-            }
-          })
-        );
-        
-        setCadets(cadetsWithScores);
-      } catch (err) {
-        console.error('Error fetching cadets:', err);
-        setError('Ошибка загрузки данных кадетов');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCadets();
-  }, []);
-
-  const categories = [
-    { key: 'total', name: 'Общий рейтинг', icon: Trophy, color: 'from-yellow-500 to-orange-500' },
-    { key: 'study', name: 'Учёба', icon: Medal, color: 'from-blue-500 to-cyan-500' },
-    { key: 'discipline', name: 'Дисциплина', icon: Target, color: 'from-red-500 to-pink-500' },
-    { key: 'events', name: 'Мероприятия', icon: Users, color: 'from-green-500 to-emerald-500' },
-  ];
-
-  const filteredCadets = cadets.filter(cadet => {
-    const matchesSearch = cadet.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPlatoon = selectedPlatoon === 'all' || cadet.platoon === selectedPlatoon;
-    const matchesSquad = selectedSquad === 'all' || cadet.squad.toString() === selectedSquad;
-    return matchesSearch && matchesPlatoon && matchesSquad;
+  
+  // Data states
+  const [cadets, setCadets] = useState<Cadet[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [news, setNews] = useState<News[]>([]);
+  const [stats, setStats] = useState<AdminStats>({
+    totalCadets: 0,
+    totalTasks: 0,
+    totalNews: 0,
+    averageScore: 0
   });
 
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return `#${rank}`;
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [modalType, setModalType] = useState<'cadet' | 'task' | 'news'>('cadet');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAllData();
+    }
+  }, [isAdmin]);
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      
+      const [cadetsData, tasksData, newsData] = await Promise.all([
+        getCadets(),
+        getTasks(),
+        getNews()
+      ]);
+
+      setCadets(cadetsData);
+      setTasks(tasksData);
+      setNews(newsData);
+
+      // Calculate stats
+      const averageScore = cadetsData.length > 0 
+        ? cadetsData.reduce((sum, cadet) => sum + cadet.total_score, 0) / cadetsData.length
+        : 0;
+
+      setStats({
+        totalCadets: cadetsData.length,
+        totalTasks: tasksData.length,
+        totalNews: newsData.length,
+        averageScore: Math.round(averageScore)
+      });
+
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Ошибка загрузки данных');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getRankColor = (rank: number) => {
-    if (rank === 1) return 'from-yellow-400 to-yellow-600';
-    if (rank === 2) return 'from-gray-300 to-gray-500';
-    if (rank === 3) return 'from-orange-400 to-orange-600';
-    return 'from-blue-500 to-blue-700';
+  const openAddModal = (type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(null);
+    setShowAddModal(true);
   };
 
-  const getScoreChange = (cadet: CadetWithScores) => {
-    // Mock data for score changes
-    const changes = [5, -2, 8, 3, -1, 12, 0, 4, -3, 7];
-    return changes[parseInt(cadet.id.slice(-1)) % changes.length] || 0;
+  const openEditModal = (item: any, type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(item);
+    setShowAddModal(true);
+  };
+
+  const closeModal = () => {
+    setShowAddModal(false);
+    setEditingItem(null);
+  };
+
+  const handleSaveCadet = async (cadetData: any) => {
+    try {
+      setIsSubmitting(true);
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      await fetchAllData(); // Обновляем список кадетов
+      closeModal();
+    } catch (error) {
+      console.error('Error saving cadet:', error);
+      throw error; // Пробрасываем ошибку для обработки в модальном окне
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <p className="text-blue-200">У вас нет прав администратора</p>
+        </div>
+      </div>
+    );
+  }
+
+  const renderOverviewTab = () => (
+    <div className="space-y-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-blue-600 to-blue-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-200 text-sm font-semibold">Всего кадетов</p>
+              <p className="text-3xl font-black text-white">{stats.totalCadets}</p>
+            </div>
+            <Users className="h-12 w-12 text-blue-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-green-600 to-green-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-200 text-sm font-semibold">Активных заданий</p>
+              <p className="text-3xl font-black text-white">{stats.totalTasks}</p>
+            </div>
+            <BookOpen className="h-12 w-12 text-green-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-purple-600 to-purple-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-200 text-sm font-semibold">Новостей</p>
+              <p className="text-3xl font-black text-white">{stats.totalNews}</p>
+            </div>
+            <Award className="h-12 w-12 text-purple-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-yellow-600 to-yellow-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-200 text-sm font-semibold">Средний балл</p>
+              <p className="text-3xl font-black text-white">{stats.averageScore}</p>
+            </div>
+            <Trophy className="h-12 w-12 text-yellow-300" />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Add/Edit Cadet Modal */}
+      <AddEditCadetModal
+        isOpen={showAddModal && modalType === 'cadet'}
+        onClose={closeModal}
+        onSave={handleSaveCadet}
+        cadetData={editingItem}
+        isEditing={!!editingItem}
+      />
+
+      {/* Temporary modals for other types - TODO: implement proper modals */}
+      {showAddModal && modalType === 'task' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление заданий
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления заданий будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showAddModal && modalType === 'news' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление новостей
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления новостей будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="card-hover p-8">
+        <h3 className="text-2xl font-bold text-white mb-6">Последняя активность</h3>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <CheckCircle className="h-6 w-6 text-green-400" />
+            <div>
+              <p className="text-white font-semibold">Новый кадет зарегистрирован</p>
+              <p className="text-blue-300 text-sm">2 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Star className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="text-white font-semibold">Задание выполнено</p>
+              <p className="text-blue-300 text-sm">4 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Award className="h-6 w-6 text-purple-400" />
+            <div>
+              <p className="text-white font-semibold">Новость опубликована</p>
+              <p className="text-blue-300 text-sm">1 день назад</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCadetsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление кадетами</h3>
+        <button
+          onClick={() => openAddModal('cadet')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить кадета
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {cadets.map((cadet) => (
+            <div key={cadet.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div className="flex items-center space-x-4">
+                <img
+                  src={cadet.avatar_url || 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?w=100'}
+                  alt={cadet.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-white font-semibold">{cadet.name}</p>
+                  <p className="text-blue-300 text-sm">{cadet.platoon} взвод, {cadet.squad} отделение</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{cadet.total_score} баллов</span>
+                <button
+                  onClick={() => openEditModal(cadet, 'cadet')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать кадета"
+                  title="Редактировать кадета"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCadet(cadet.id)}
+                  className="text-red-400 hover:text-red-300 ml-2"
+                  title="Удалить кадета"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTasksTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление заданиями</h3>
+        <button
+          onClick={() => openAddModal('task')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить задание
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{task.title}</p>
+                <p className="text-blue-300 text-sm">{task.category} • {task.difficulty}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{task.points} баллов</span>
+                <span className="text-blue-300 text-sm">
+                  До {new Date(task.deadline).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(task, 'task')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать задание"
+                  title="Редактировать задание"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderNewsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление новостями</h3>
+        <button
+          onClick={() => openAddModal('news')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить новость
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {news.map((newsItem) => (
+            <div key={newsItem.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{newsItem.title}</p>
+                <p className="text-blue-300 text-sm">Автор: {newsItem.author}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                {newsItem.is_main && (
+                  <span className="bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold">
+                    ГЛАВНАЯ
+                  </span>
+                )}
+                <span className="text-blue-300 text-sm">
+                  {new Date(newsItem.created_at).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(newsItem, 'news')}
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAnalyticsTab = () => (
+    <div className="space-y-8">
+      <h3 className="text-2xl font-bold text-white">Аналитика</h3>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Топ кадетов по баллам</h4>
+          <div className="space-y-3">
+            {cadets
+              .sort((a, b) => b.total_score - a.total_score)
+              .slice(0, 5)
+              .map((cadet, index) => (
+                <div key={cadet.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-yellow-400 font-bold">#{index + 1}</span>
+                    <span className="text-white">{cadet.name}</span>
+                  </div>
+                  <span className="text-blue-300 font-semibold">{cadet.total_score}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Статистика по взводам</h4>
+          <div className="space-y-3">
+            {Array.from(new Set(cadets.map(c => c.platoon)))
+              .map(platoon => {
+                const platoonCadets = cadets.filter(c => c.platoon === platoon);
+                const avgScore = platoonCadets.reduce((sum, c) => sum + c.total_score, 0) / platoonCadets.length;
+                return (
+                  <div key={platoon} className="flex items-center justify-between">
+                    <span className="text-white">{platoon} взвод</span>
+                    <div className="text-right">
+                      <div className="text-blue-300 font-semibold">{Math.round(avgScore)} ср. балл</div>
+                      <div className="text-blue-400 text-sm">{platoonCadets.length} кадетов</div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview': return renderOverviewTab();
+      case 'cadets': return renderCadetsTab();
+      case 'tasks': return renderTasksTab();
+      case 'news': return renderNewsTab();
+      case 'analytics': return renderAnalyticsTab();
+      default: return renderOverviewTab();
+    }
   };
 
   return (
@@ -125,227 +539,90 @@ const RatingPage: React.FC = () => {
       
       <div className="relative z-20 section-padding">
         <div className="container-custom">
-        {/* Header */}
-        <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          className="text-center mb-16"
-        >
-          <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
-            Рейтинг кадетов
-          </h1>
-          <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
-          <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
-            Следите за успехами и достижениями лучших кадетов корпуса
-          </p>
-        </motion.div>
-
-        {/* Loading State */}
-        {loading && (
-          <div>
-            <LoadingSpinner message="Загрузка данных кадетов..." />
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-4">{error}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="btn-primary"
-            >
-              Попробовать снова
-            </button>
-          </div>
-        )}
-
-        {/* Categories */}
-        {!loading && !error && (
+          {/* Header */}
           <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
-        >
-          {categories.map(({ key, name, icon: Icon, color }) => (
-            <motion.button
-              key={key}
-              variants={staggerItem}
-              whileHover={{ scale: 1.05, y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setSelectedCategory(key as any)}
-              className={`relative overflow-hidden p-6 rounded-2xl transition-all duration-500 shadow-2xl ${
-                selectedCategory === key
-                  ? 'scale-105 shadow-blue-500/25'
-                  : 'opacity-80 hover:opacity-100'
-              }`}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${color} ${
-                selectedCategory === key ? 'opacity-100' : 'opacity-60'
-              }`}></div>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative flex flex-col items-center text-white">
-                <Icon className="h-10 w-10 mb-3" />
-                <span className="font-bold text-base">{name}</span>
-              </div>
-            </motion.button>
-          ))}
-        </motion.div>
-        )}
+            variants={fadeInUp}
+            initial="hidden"
+            animate="visible"
+            className="text-center mb-16"
+          >
+            <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
+              Панель администратора
+            </h1>
+            <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
+            <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
+              Управление системой рейтинга кадетов
+            </p>
+          </motion.div>
 
-        {/* Filters */}
-        {!loading && !error && (
-          <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          className="glass-effect rounded-2xl p-8 mb-12 shadow-2xl"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Поиск кадета..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input pl-10"
-              />
-            </div>
-
-            {/* Platoon Filter */}
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-300 h-4 w-4" />
-              <select
-                value={selectedPlatoon}
-                onChange={(e) => setSelectedPlatoon(e.target.value)}
-                className="input pl-10"
-              >
-                <option value="all">Все взводы</option>
-                {platoons.map(platoon => (
-                  <option key={platoon} value={platoon}>{platoon} взвод</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Squad Filter */}
+          {/* Loading State */}
+          {loading && (
             <div>
-              <select
-                value={selectedSquad}
-                onChange={(e) => setSelectedSquad(e.target.value)}
-                className="input"
+              <LoadingSpinner message="Загрузка данных..." />
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-12">
+              <p className="text-red-400 mb-4">{error}</p>
+              <button 
+                onClick={fetchAllData}
+                className="btn-primary"
               >
-                <option value="all">Все отделения</option>
-                {squads.map(squad => (
-                  <option key={squad} value={squad.toString()}>{squad} отделение</option>
+                Попробовать снова
+              </button>
+            </div>
+          )}
+
+          {/* Tabs */}
+          {!loading && !error && (
+            <>
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+                className="flex flex-wrap justify-center gap-4 mb-12"
+              >
+                {[
+                  { key: 'overview', name: 'Обзор', icon: TrendingUp },
+                  { key: 'cadets', name: 'Кадеты', icon: Users },
+                  { key: 'tasks', name: 'Задания', icon: BookOpen },
+                  { key: 'news', name: 'Новости', icon: Award },
+                  { key: 'analytics', name: 'Аналитика', icon: Target },
+                ].map(({ key, name, icon: Icon }) => (
+                  <motion.button
+                    key={key}
+                    variants={staggerItem}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab(key as any)}
+                    className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      activeTab === key
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                        : 'bg-white/10 text-blue-300 hover:bg-white/20 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{name}</span>
+                  </motion.button>
                 ))}
-              </select>
-            </div>
+              </motion.div>
 
-            <div className="text-white font-bold text-lg flex items-center justify-center">
-              Найдено: {filteredCadets.length}
-            </div>
-          </div>
-        </motion.div>
-        )}
-
-        {/* Rating List */}
-        {!loading && !error && (
-          <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="space-y-6"
-        >
-          {filteredCadets.map((cadet, index) => (
-            <motion.div
-              key={cadet.id}
-              variants={staggerItem}
-              whileHover={{ scale: 1.02, y: -5 }}
-              className="group hover-lift"
-            >
-              <Link to={`/cadet/${cadet.id}`}>
-                <div className="card-hover p-8 shadow-2xl border border-white/20 hover:border-yellow-400/50 transition-all duration-500">
-                  <div className="flex items-center space-x-6">
-                    {/* Rank */}
-                    <div className={`flex-shrink-0 w-20 h-20 rounded-full bg-gradient-to-br ${getRankColor(cadet.rank)} flex items-center justify-center font-bold text-white text-xl shadow-2xl hover-glow`}>
-                      {getRankIcon(cadet.rank)}
-                    </div>
-
-                    {/* Avatar */}
-                    <div className="flex-shrink-0">
-                      <img
-                        src={cadet.avatar_url || 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?w=200'}
-                        alt={cadet.name}
-                        className="w-20 h-20 rounded-full object-cover border-4 border-white/30 group-hover:border-yellow-400/70 transition-all duration-500 shadow-lg"
-                      />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-grow">
-                      <h3 className="text-2xl font-bold text-white group-hover:text-yellow-300 transition-colors text-shadow">
-                        {cadet.name}
-                      </h3>
-                      <p className="text-blue-300 text-lg">
-                        {cadet.platoon} взвод, {cadet.squad} отделение
-                      </p>
-                    </div>
-
-                    {/* Scores */}
-                    <div className="flex-shrink-0 grid grid-cols-4 gap-4 text-center">
-                      <div>
-                        <div className="flex items-center justify-center space-x-1">
-                          <span className="text-3xl font-black text-white text-glow">{cadet.scores.total}</span>
-                          {(() => {
-                            const change = getScoreChange(cadet);
-                            if (change > 0) {
-                              return <TrendingUp className="h-5 w-5 text-green-400" />;
-                            } else if (change < 0) {
-                              return <TrendingDown className="h-5 w-5 text-red-400" />;
-                            }
-                            return null;
-                          })()}
-                        </div>
-                        <div className="text-sm text-blue-300 font-semibold">Общий</div>
-                        {(() => {
-                          const change = getScoreChange(cadet);
-                          if (change !== 0) {
-                            return (
-                              <div className={`text-sm font-bold ${change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {change > 0 ? '+' : ''}{change}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-blue-300">{cadet.scores.study}</div>
-                        <div className="text-sm text-blue-400 font-semibold">Учёба</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-red-300">{cadet.scores.discipline}</div>
-                        <div className="text-sm text-red-400 font-semibold">Дисциплина</div>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-green-300">{cadet.scores.events}</div>
-                        <div className="text-sm text-green-400 font-semibold">Мероприятия</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
-        )}
+              {/* Tab Content */}
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {renderTabContent()}
+              </motion.div>
+            </>
+          )}
         </div>
       </div>
     </motion.div>
   );
 };
 
-export default RatingPage;
+export default AdminPage;

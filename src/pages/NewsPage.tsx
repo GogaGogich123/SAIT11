@@ -1,59 +1,527 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, User, ChevronLeft, ChevronRight, Star, Share2, Heart, MessageCircle } from 'lucide-react';
+import { 
+  Users, 
+  Award, 
+  BookOpen, 
+  Target,
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
+  Calendar,
+  Star,
+  Trophy,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Filter,
+  Search
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import ParticleBackground from '../components/ParticleBackground';
 import ModernBackground from '../components/ModernBackground';
 import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getNews, type News } from '../lib/supabase';
+import { 
+  getCadets,
+  getTasks,
+  getNews,
+  type Cadet,
+  type Task,
+  type News
+} from '../lib/supabase';
+import { addCadetByAdmin } from '../lib/supabase';
+import AddEditCadetModal from '../components/Admin/AddEditCadetModal';
 import { fadeInUp, staggerContainer, staggerItem } from '../utils/animations';
 
-const NewsPage: React.FC = () => {
-  const [selectedNews, setSelectedNews] = useState<News | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [news, setNews] = useState<News[]>([]);
+interface AdminStats {
+  totalCadets: number;
+  totalTasks: number;
+  totalNews: number;
+  averageScore: number;
+}
+
+const AdminPage: React.FC = () => {
+  const { user, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'cadets' | 'tasks' | 'news' | 'analytics'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Data states
+  const [cadets, setCadets] = useState<Cadet[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [news, setNews] = useState<News[]>([]);
+  const [stats, setStats] = useState<AdminStats>({
+    totalCadets: 0,
+    totalTasks: 0,
+    totalNews: 0,
+    averageScore: 0
+  });
+
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [modalType, setModalType] = useState<'cadet' | 'task' | 'news'>('cadet');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const fetchNews = async () => {
-      try {
-        setLoading(true);
-        const newsData = await getNews();
-        setNews(newsData);
-      } catch (err) {
-        console.error('Error fetching news:', err);
-        setError('Ошибка загрузки новостей');
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (isAdmin) {
+      fetchAllData();
+    }
+  }, [isAdmin]);
 
-    fetchNews();
-  }, []);
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      
+      const [cadetsData, tasksData, newsData] = await Promise.all([
+        getCadets(),
+        getTasks(),
+        getNews()
+      ]);
 
-  const mainNews = news.find(item => item.is_main);
-  const regularNews = news.filter(item => !item.is_main);
+      setCadets(cadetsData);
+      setTasks(tasksData);
+      setNews(newsData);
 
-  const openNewsModal = (newsItem: News) => {
-    setSelectedNews(newsItem);
-    setCurrentImageIndex(0);
-  };
+      // Calculate stats
+      const averageScore = cadetsData.length > 0 
+        ? cadetsData.reduce((sum, cadet) => sum + cadet.total_score, 0) / cadetsData.length
+        : 0;
 
-  const closeNewsModal = () => {
-    setSelectedNews(null);
-    setCurrentImageIndex(0);
-  };
+      setStats({
+        totalCadets: cadetsData.length,
+        totalTasks: tasksData.length,
+        totalNews: newsData.length,
+        averageScore: Math.round(averageScore)
+      });
 
-  const nextImage = () => {
-    if (selectedNews && currentImageIndex < selectedNews.images.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Ошибка загрузки данных');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const prevImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1);
+  const openAddModal = (type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(null);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (item: any, type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(item);
+    setShowAddModal(true);
+  };
+
+  const closeModal = () => {
+    setShowAddModal(false);
+    setEditingItem(null);
+  };
+
+  const handleSaveCadet = async (cadetData: any) => {
+    try {
+      setIsSubmitting(true);
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      await fetchAllData(); // Обновляем список кадетов
+      closeModal();
+    } catch (error) {
+      console.error('Error saving cadet:', error);
+      throw error; // Пробрасываем ошибку для обработки в модальном окне
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <p className="text-blue-200">У вас нет прав администратора</p>
+        </div>
+      </div>
+    );
+  }
+
+  const renderOverviewTab = () => (
+    <div className="space-y-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-blue-600 to-blue-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-200 text-sm font-semibold">Всего кадетов</p>
+              <p className="text-3xl font-black text-white">{stats.totalCadets}</p>
+            </div>
+            <Users className="h-12 w-12 text-blue-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-green-600 to-green-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-200 text-sm font-semibold">Активных заданий</p>
+              <p className="text-3xl font-black text-white">{stats.totalTasks}</p>
+            </div>
+            <BookOpen className="h-12 w-12 text-green-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-purple-600 to-purple-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-200 text-sm font-semibold">Новостей</p>
+              <p className="text-3xl font-black text-white">{stats.totalNews}</p>
+            </div>
+            <Award className="h-12 w-12 text-purple-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-yellow-600 to-yellow-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-200 text-sm font-semibold">Средний балл</p>
+              <p className="text-3xl font-black text-white">{stats.averageScore}</p>
+            </div>
+            <Trophy className="h-12 w-12 text-yellow-300" />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Add/Edit Cadet Modal */}
+      <AddEditCadetModal
+        isOpen={showAddModal && modalType === 'cadet'}
+        onClose={closeModal}
+        onSave={handleSaveCadet}
+        cadetData={editingItem}
+        isEditing={!!editingItem}
+      />
+
+      {/* Temporary modals for other types - TODO: implement proper modals */}
+      {showAddModal && modalType === 'task' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление заданий
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления заданий будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showAddModal && modalType === 'news' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление новостей
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления новостей будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="card-hover p-8">
+        <h3 className="text-2xl font-bold text-white mb-6">Последняя активность</h3>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <CheckCircle className="h-6 w-6 text-green-400" />
+            <div>
+              <p className="text-white font-semibold">Новый кадет зарегистрирован</p>
+              <p className="text-blue-300 text-sm">2 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Star className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="text-white font-semibold">Задание выполнено</p>
+              <p className="text-blue-300 text-sm">4 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Award className="h-6 w-6 text-purple-400" />
+            <div>
+              <p className="text-white font-semibold">Новость опубликована</p>
+              <p className="text-blue-300 text-sm">1 день назад</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCadetsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление кадетами</h3>
+        <button
+          onClick={() => openAddModal('cadet')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить кадета
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {cadets.map((cadet) => (
+            <div key={cadet.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div className="flex items-center space-x-4">
+                <img
+                  src={cadet.avatar_url || 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?w=100'}
+                  alt={cadet.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-white font-semibold">{cadet.name}</p>
+                  <p className="text-blue-300 text-sm">{cadet.platoon} взвод, {cadet.squad} отделение</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{cadet.total_score} баллов</span>
+                <button
+                  onClick={() => openEditModal(cadet, 'cadet')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать кадета"
+                  title="Редактировать кадета"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCadet(cadet.id)}
+                  className="text-red-400 hover:text-red-300 ml-2"
+                  title="Удалить кадета"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTasksTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление заданиями</h3>
+        <button
+          onClick={() => openAddModal('task')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить задание
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{task.title}</p>
+                <p className="text-blue-300 text-sm">{task.category} • {task.difficulty}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{task.points} баллов</span>
+                <span className="text-blue-300 text-sm">
+                  До {new Date(task.deadline).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(task, 'task')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать задание"
+                  title="Редактировать задание"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderNewsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление новостями</h3>
+        <button
+          onClick={() => openAddModal('news')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить новость
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {news.map((newsItem) => (
+            <div key={newsItem.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{newsItem.title}</p>
+                <p className="text-blue-300 text-sm">Автор: {newsItem.author}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                {newsItem.is_main && (
+                  <span className="bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold">
+                    ГЛАВНАЯ
+                  </span>
+                )}
+                <span className="text-blue-300 text-sm">
+                  {new Date(newsItem.created_at).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(newsItem, 'news')}
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAnalyticsTab = () => (
+    <div className="space-y-8">
+      <h3 className="text-2xl font-bold text-white">Аналитика</h3>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Топ кадетов по баллам</h4>
+          <div className="space-y-3">
+            {cadets
+              .sort((a, b) => b.total_score - a.total_score)
+              .slice(0, 5)
+              .map((cadet, index) => (
+                <div key={cadet.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-yellow-400 font-bold">#{index + 1}</span>
+                    <span className="text-white">{cadet.name}</span>
+                  </div>
+                  <span className="text-blue-300 font-semibold">{cadet.total_score}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Статистика по взводам</h4>
+          <div className="space-y-3">
+            {Array.from(new Set(cadets.map(c => c.platoon)))
+              .map(platoon => {
+                const platoonCadets = cadets.filter(c => c.platoon === platoon);
+                const avgScore = platoonCadets.reduce((sum, c) => sum + c.total_score, 0) / platoonCadets.length;
+                return (
+                  <div key={platoon} className="flex items-center justify-between">
+                    <span className="text-white">{platoon} взвод</span>
+                    <div className="text-right">
+                      <div className="text-blue-300 font-semibold">{Math.round(avgScore)} ср. балл</div>
+                      <div className="text-blue-400 text-sm">{platoonCadets.length} кадетов</div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview': return renderOverviewTab();
+      case 'cadets': return renderCadetsTab();
+      case 'tasks': return renderTasksTab();
+      case 'news': return renderNewsTab();
+      case 'analytics': return renderAnalyticsTab();
+      default: return renderOverviewTab();
     }
   };
 
@@ -71,264 +539,90 @@ const NewsPage: React.FC = () => {
       
       <div className="relative z-20 section-padding">
         <div className="container-custom">
-        {/* Header */}
-        <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          className="text-center mb-16"
-        >
-          <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
-            Новости корпуса
-          </h1>
-          <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
-          <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
-            Актуальные события и достижения кадетов
-          </p>
-        </motion.div>
-
-        {/* Loading State */}
-        {loading && (
-          <div>
-            <LoadingSpinner message="Загрузка новостей..." />
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-4">{error}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="btn-primary"
-            >
-              Попробовать снова
-            </button>
-          </div>
-        )}
-
-        {/* Main News */}
-        {!loading && !error && mainNews && (
+          {/* Header */}
           <motion.div
             variants={fadeInUp}
             initial="hidden"
             animate="visible"
-            className="mb-16"
+            className="text-center mb-16"
           >
-            <div 
-              className="relative overflow-hidden rounded-3xl shadow-2xl cursor-pointer group hover-lift"
-              onClick={() => openNewsModal(mainNews)}
-            >
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-10"></div>
-              {mainNews.background_image_url && (
-                <img
-                  src={mainNews.background_image_url}
-                  alt={mainNews.title}
-                  className="w-full h-[500px] object-cover group-hover:scale-110 transition-transform duration-700"
-                />
-              )}
-              <div className="absolute bottom-0 left-0 right-0 p-12 z-20">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Star className="h-6 w-6 text-yellow-400" />
-                  <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-                    ГЛАВНАЯ НОВОСТЬ
-                  </span>
-                </div>
-                <h2 className="text-5xl font-display font-black text-white mb-6 group-hover:text-yellow-400 transition-colors text-shadow">
-                  {mainNews.title}
-                </h2>
-                <p className="text-blue-100 mb-6 line-clamp-3 text-lg text-shadow">{mainNews.content}</p>
-                <div className="flex items-center space-x-6 text-blue-200">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <span className="text-base font-semibold">{mainNews.author}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5" />
-                    <span className="text-base font-semibold">{new Date(mainNews.created_at).toLocaleDateString('ru-RU')}</span>
-                  </div>
-                </div>
-              </div>
+            <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
+              Панель администратора
+            </h1>
+            <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
+            <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
+              Управление системой рейтинга кадетов
+            </p>
+          </motion.div>
+
+          {/* Loading State */}
+          {loading && (
+            <div>
+              <LoadingSpinner message="Загрузка данных..." />
             </div>
-          </motion.div>
-        )}
+          )}
 
-        {/* Regular News */}
-        {!loading && !error && (
-          <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-        >
-          {regularNews.map((news, index) => (
-            <motion.div
-              key={news.id}
-              variants={staggerItem}
-              whileHover={{ scale: 1.05, y: -10 }}
-              className="card-hover overflow-hidden shadow-2xl cursor-pointer group"
-              onClick={() => openNewsModal(news)}
-            >
-              {news.images[0] && (
-                <div className="relative overflow-hidden">
-                  <img
-                    src={news.images[0]}
-                    alt={news.title}
-                    className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                </div>
-              )}
-              <div className="p-8">
-                <h3 className="text-2xl font-bold text-white mb-4 group-hover:text-yellow-400 transition-colors line-clamp-2 text-shadow">
-                  {news.title}
-                </h3>
-                <p className="text-blue-200 mb-6 line-clamp-3 text-base">{news.content}</p>
-                <div className="flex items-center justify-between text-blue-300 mb-6">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <span className="font-semibold">{news.author}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5" />
-                    <span className="font-semibold">{new Date(news.created_at).toLocaleDateString('ru-RU')}</span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-6 pt-6 border-t border-white/20">
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-12">
+              <p className="text-red-400 mb-4">{error}</p>
+              <button 
+                onClick={fetchAllData}
+                className="btn-primary"
+              >
+                Попробовать снова
+              </button>
+            </div>
+          )}
+
+          {/* Tabs */}
+          {!loading && !error && (
+            <>
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+                className="flex flex-wrap justify-center gap-4 mb-12"
+              >
+                {[
+                  { key: 'overview', name: 'Обзор', icon: TrendingUp },
+                  { key: 'cadets', name: 'Кадеты', icon: Users },
+                  { key: 'tasks', name: 'Задания', icon: BookOpen },
+                  { key: 'news', name: 'Новости', icon: Award },
+                  { key: 'analytics', name: 'Аналитика', icon: Target },
+                ].map(({ key, name, icon: Icon }) => (
                   <motion.button
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                    className="flex items-center space-x-2 text-blue-300 hover:text-yellow-400 transition-colors font-semibold"
+                    key={key}
+                    variants={staggerItem}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab(key as any)}
+                    className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      activeTab === key
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                        : 'bg-white/10 text-blue-300 hover:bg-white/20 hover:text-white'
+                    }`}
                   >
-                    <Heart className="h-5 w-5" />
-                    <span>12</span>
+                    <Icon className="h-5 w-5" />
+                    <span>{name}</span>
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                    className="flex items-center space-x-2 text-blue-300 hover:text-yellow-400 transition-colors font-semibold"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                    <span>5</span>
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.2 }}
-                    whileTap={{ scale: 0.9 }}
-                    className="text-blue-300 hover:text-yellow-400 transition-colors"
-                  >
-                    <Share2 className="h-5 w-5" />
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-        )}
+                ))}
+              </motion.div>
 
-        {/* News Modal */}
-        {selectedNews && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={closeNewsModal}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="glass-effect rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-12">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-4">
-                    {selectedNews.is_main && (
-                      <div className="flex items-center space-x-2">
-                        <Star className="h-6 w-6 text-yellow-400" />
-                        <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-                          ГЛАВНАЯ НОВОСТЬ
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={closeNewsModal}
-                    className="text-white hover:text-yellow-400 text-3xl font-bold transition-colors"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <h2 className="text-5xl font-display font-black text-white mb-8 text-shadow">{selectedNews.title}</h2>
-
-                <div className="flex items-center space-x-8 text-blue-200 mb-12">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <span className="text-lg font-semibold">{selectedNews.author}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5" />
-                    <span className="text-lg font-semibold">{new Date(selectedNews.created_at).toLocaleDateString('ru-RU')}</span>
-                  </div>
-                </div>
-
-                <div className="prose prose-invert max-w-none mb-12">
-                  <p className="text-blue-100 text-xl leading-relaxed text-shadow">{selectedNews.content}</p>
-                </div>
-
-                {/* Image Carousel */}
-                {selectedNews.images && selectedNews.images.length > 0 && (
-                  <div className="relative">
-                    <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-                      <img
-                        src={selectedNews.images[currentImageIndex]}
-                        alt={`${selectedNews.title} ${currentImageIndex + 1}`}
-                        className="w-full h-[500px] object-cover"
-                      />
-                      {selectedNews.images.length > 1 && (
-                        <>
-                          <button
-                            onClick={prevImage}
-                            disabled={currentImageIndex === 0}
-                            className="absolute left-6 top-1/2 transform -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-                          >
-                            <ChevronLeft className="h-8 w-8" />
-                          </button>
-                          <button
-                            onClick={nextImage}
-                            disabled={currentImageIndex === selectedNews.images.length - 1}
-                            className="absolute right-6 top-1/2 transform -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-                          >
-                            <ChevronRight className="h-8 w-8" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    {selectedNews.images && selectedNews.images.length > 1 && (
-                      <div className="flex justify-center space-x-3 mt-6">
-                        {selectedNews.images.map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() => setCurrentImageIndex(index)}
-                            className={`w-4 h-4 rounded-full transition-colors shadow-lg ${
-                              index === currentImageIndex ? 'bg-yellow-400' : 'bg-white/30'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+              {/* Tab Content */}
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {renderTabContent()}
+              </motion.div>
+            </>
+          )}
         </div>
       </div>
     </motion.div>
   );
 };
 
-export default NewsPage;
+export default AdminPage;

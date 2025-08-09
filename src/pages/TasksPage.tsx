@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  CheckSquare, 
-  Clock, 
-  Star, 
-  AlertCircle, 
-  Trophy,
-  BookOpen,
-  Users,
+  Users, 
+  Award, 
+  BookOpen, 
   Target,
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
   Calendar,
+  Star,
+  Trophy,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
   Filter,
-  SortAsc
+  Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ParticleBackground from '../components/ParticleBackground';
@@ -19,186 +26,504 @@ import ModernBackground from '../components/ModernBackground';
 import AnimatedSVGBackground from '../components/AnimatedSVGBackground';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { 
-  getTasks, 
-  getTaskSubmissions, 
-  takeTask, 
-  submitTask, 
-  abandonTask,
+  getCadets,
+  getTasks,
+  getNews,
+  type Cadet,
   type Task,
-  type TaskSubmission
+  type News
 } from '../lib/supabase';
+import { addCadetByAdmin } from '../lib/supabase';
+import AddEditCadetModal from '../components/Admin/AddEditCadetModal';
 import { fadeInUp, staggerContainer, staggerItem } from '../utils/animations';
 
-interface TaskWithSubmission extends Task {
-  submission?: TaskSubmission;
-  userStatus: 'available' | 'taken' | 'submitted' | 'completed' | 'rejected';
+interface AdminStats {
+  totalCadets: number;
+  totalTasks: number;
+  totalNews: number;
+  averageScore: number;
 }
 
-const TasksPage: React.FC = () => {
-  const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'deadline' | 'points' | 'difficulty'>('deadline');
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [submissionText, setSubmissionText] = useState('');
-  const [tasks, setTasks] = useState<TaskWithSubmission[]>([]);
+const AdminPage: React.FC = () => {
+  const { user, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'cadets' | 'tasks' | 'news' | 'analytics'>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchTasks = async () => {
-      if (!user?.cadetId) return;
-      
-      try {
-        setLoading(true);
-        
-        // Получаем все активные задания
-        const tasksData = await getTasks();
-        
-        // Получаем сдачи заданий текущего кадета
-        const submissionsData = await getTaskSubmissions(user.cadetId);
-        
-        // Объединяем данные
-        const tasksWithSubmissions: TaskWithSubmission[] = tasksData.map(task => {
-          const submission = submissionsData.find(s => s.task_id === task.id);
-          return {
-            ...task,
-            submission,
-            userStatus: submission ? submission.status : 'available'
-          };
-        });
-        
-        setTasks(tasksWithSubmissions);
-      } catch (err) {
-        console.error('Error fetching tasks:', err);
-        setError('Ошибка загрузки заданий');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTasks();
-  }, [user?.cadetId]);
-
-  const categories = [
-    { key: 'all', name: 'Все задания', icon: CheckSquare, color: 'from-gray-600 to-gray-800' },
-    { key: 'study', name: 'Учёба', icon: BookOpen, color: 'from-blue-600 to-blue-800' },
-    { key: 'discipline', name: 'Дисциплина', icon: Target, color: 'from-red-600 to-red-800' },
-    { key: 'events', name: 'Мероприятия', icon: Users, color: 'from-green-600 to-green-800' },
-  ];
-
-  const filteredTasks = selectedCategory === 'all' 
-    ? tasks 
-    : tasks.filter(task => task.category === selectedCategory);
-
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    switch (sortBy) {
-      case 'deadline':
-        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-      case 'points':
-        return b.points - a.points;
-      case 'difficulty':
-        const difficultyOrder = { easy: 1, medium: 2, hard: 3 };
-        return difficultyOrder[b.difficulty] - difficultyOrder[a.difficulty];
-      default:
-        return 0;
-    }
+  
+  // Data states
+  const [cadets, setCadets] = useState<Cadet[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [news, setNews] = useState<News[]>([]);
+  const [stats, setStats] = useState<AdminStats>({
+    totalCadets: 0,
+    totalTasks: 0,
+    totalNews: 0,
+    averageScore: 0
   });
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'text-green-400 bg-green-400/20';
-      case 'medium': return 'text-yellow-400 bg-yellow-400/20';
-      case 'hard': return 'text-red-400 bg-red-400/20';
-      default: return 'text-gray-400 bg-gray-400/20';
-    }
-  };
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [modalType, setModalType] = useState<'cadet' | 'task' | 'news'>('cadet');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'available': return 'text-blue-400 bg-blue-400/20';
-      case 'taken': return 'text-yellow-400 bg-yellow-400/20';
-      case 'submitted': return 'text-orange-400 bg-orange-400/20';
-      case 'completed': return 'text-green-400 bg-green-400/20';
-      case 'rejected': return 'text-red-400 bg-red-400/20';
-      default: return 'text-gray-400 bg-gray-400/20';
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAllData();
     }
-  };
+  }, [isAdmin]);
 
-  const getStatusText = (userStatus: string) => {
-    switch (userStatus) {
-      case 'available': return 'Доступно';
-      case 'taken': return 'Взято';
-      case 'submitted': return 'На проверке';
-      case 'completed': return 'Выполнено';
-      case 'rejected': return 'Отклонено';
-      default: return userStatus;
-    }
-  };
-
-  const handleTakeTask = async (taskId: string) => {
-    if (!user?.cadetId) return;
-    
+  const fetchAllData = async () => {
     try {
-      await takeTask(taskId, user.cadetId);
-      // Обновляем список заданий
-      setTasks(tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, userStatus: 'taken' }
-          : task
-      ));
-    } catch (error) {
-      console.error('Error taking task:', error);
-      alert('Ошибка при взятии задания');
+      setLoading(true);
+      
+      const [cadetsData, tasksData, newsData] = await Promise.all([
+        getCadets(),
+        getTasks(),
+        getNews()
+      ]);
+
+      setCadets(cadetsData);
+      setTasks(tasksData);
+      setNews(newsData);
+
+      // Calculate stats
+      const averageScore = cadetsData.length > 0 
+        ? cadetsData.reduce((sum, cadet) => sum + cadet.total_score, 0) / cadetsData.length
+        : 0;
+
+      setStats({
+        totalCadets: cadetsData.length,
+        totalTasks: tasksData.length,
+        totalNews: newsData.length,
+        averageScore: Math.round(averageScore)
+      });
+
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Ошибка загрузки данных');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSubmitTask = async (taskId: string) => {
-    if (!user?.cadetId) return;
-    
+  const openAddModal = (type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(null);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (item: any, type: 'cadet' | 'task' | 'news') => {
+    setModalType(type);
+    setEditingItem(item);
+    setShowAddModal(true);
+  };
+
+  const closeModal = () => {
+    setShowAddModal(false);
+    setEditingItem(null);
+  };
+
+  const handleSaveCadet = async (cadetData: any) => {
     try {
-      await submitTask(taskId, user.cadetId, submissionText);
-      // Обновляем список заданий
-      setTasks(tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, userStatus: 'submitted' }
-          : task
-      ));
-      setSelectedTask(null);
-      setSubmissionText('');
+      setIsSubmitting(true);
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
+      await fetchAllData(); // Обновляем список кадетов
+      closeModal();
     } catch (error) {
-      console.error('Error submitting task:', error);
-      alert('Ошибка при сдаче задания');
+      console.error('Error saving cadet:', error);
+      throw error; // Пробрасываем ошибку для обработки в модальном окне
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleAbandonTask = async (taskId: string) => {
-    if (!user?.cadetId) return;
-    
-    try {
-      await abandonTask(taskId, user.cadetId);
-      // Обновляем список заданий
-      setTasks(tasks.map(task => 
-        task.id === taskId 
-          ? { ...task, userStatus: 'available' }
-          : task
-      ));
-    } catch (error) {
-      console.error('Error abandoning task:', error);
-      alert('Ошибка при отказе от задания');
-    }
-  };
-
-  if (!user) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="h-16 w-16 text-yellow-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-white mb-2">Требуется авторизация</h2>
-          <p className="text-blue-200">Войдите в систему, чтобы просматривать и выполнять задания</p>
+          <AlertCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Доступ запрещен</h2>
+          <p className="text-blue-200">У вас нет прав администратора</p>
         </div>
       </div>
     );
   }
+
+  const renderOverviewTab = () => (
+    <div className="space-y-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-blue-600 to-blue-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-200 text-sm font-semibold">Всего кадетов</p>
+              <p className="text-3xl font-black text-white">{stats.totalCadets}</p>
+            </div>
+            <Users className="h-12 w-12 text-blue-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-green-600 to-green-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-200 text-sm font-semibold">Активных заданий</p>
+              <p className="text-3xl font-black text-white">{stats.totalTasks}</p>
+            </div>
+            <BookOpen className="h-12 w-12 text-green-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-purple-600 to-purple-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-200 text-sm font-semibold">Новостей</p>
+              <p className="text-3xl font-black text-white">{stats.totalNews}</p>
+            </div>
+            <Award className="h-12 w-12 text-purple-300" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={staggerItem}
+          className="card-gradient from-yellow-600 to-yellow-800 p-6 rounded-2xl shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-200 text-sm font-semibold">Средний балл</p>
+              <p className="text-3xl font-black text-white">{stats.averageScore}</p>
+            </div>
+            <Trophy className="h-12 w-12 text-yellow-300" />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Add/Edit Cadet Modal */}
+      <AddEditCadetModal
+        isOpen={showAddModal && modalType === 'cadet'}
+        onClose={closeModal}
+        onSave={handleSaveCadet}
+        cadetData={editingItem}
+        isEditing={!!editingItem}
+      />
+
+      {/* Temporary modals for other types - TODO: implement proper modals */}
+      {showAddModal && modalType === 'task' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление заданий
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления заданий будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showAddModal && modalType === 'news' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление новостей
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления новостей будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="card-hover p-8">
+        <h3 className="text-2xl font-bold text-white mb-6">Последняя активность</h3>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <CheckCircle className="h-6 w-6 text-green-400" />
+            <div>
+              <p className="text-white font-semibold">Новый кадет зарегистрирован</p>
+              <p className="text-blue-300 text-sm">2 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Star className="h-6 w-6 text-yellow-400" />
+            <div>
+              <p className="text-white font-semibold">Задание выполнено</p>
+              <p className="text-blue-300 text-sm">4 часа назад</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl">
+            <Award className="h-6 w-6 text-purple-400" />
+            <div>
+              <p className="text-white font-semibold">Новость опубликована</p>
+              <p className="text-blue-300 text-sm">1 день назад</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCadetsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление кадетами</h3>
+        <button
+          onClick={() => openAddModal('cadet')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить кадета
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {cadets.map((cadet) => (
+            <div key={cadet.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div className="flex items-center space-x-4">
+                <img
+                  src={cadet.avatar_url || 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?w=100'}
+                  alt={cadet.name}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-white font-semibold">{cadet.name}</p>
+                  <p className="text-blue-300 text-sm">{cadet.platoon} взвод, {cadet.squad} отделение</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{cadet.total_score} баллов</span>
+                <button
+                  onClick={() => openEditModal(cadet, 'cadet')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать кадета"
+                  title="Редактировать кадета"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCadet(cadet.id)}
+                  className="text-red-400 hover:text-red-300 ml-2"
+                  title="Удалить кадета"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTasksTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление заданиями</h3>
+        <button
+          onClick={() => openAddModal('task')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить задание
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{task.title}</p>
+                <p className="text-blue-300 text-sm">{task.category} • {task.difficulty}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-yellow-400 font-bold">{task.points} баллов</span>
+                <span className="text-blue-300 text-sm">
+                  До {new Date(task.deadline).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(task, 'task')}
+                  className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать задание"
+                  title="Редактировать задание"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderNewsTab = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-2xl font-bold text-white">Управление новостями</h3>
+        <button
+          onClick={() => openAddModal('news')}
+          className="btn-primary"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Добавить новость
+        </button>
+      </div>
+
+      <div className="card-hover p-6">
+        <div className="space-y-4">
+          {news.map((newsItem) => (
+            <div key={newsItem.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="text-white font-semibold">{newsItem.title}</p>
+                <p className="text-blue-300 text-sm">Автор: {newsItem.author}</p>
+              </div>
+              <div className="flex items-center space-x-4">
+                {newsItem.is_main && (
+                  <span className="bg-yellow-400 text-black px-2 py-1 rounded text-xs font-bold">
+                    ГЛАВНАЯ
+                  </span>
+                )}
+                <span className="text-blue-300 text-sm">
+                  {new Date(newsItem.created_at).toLocaleDateString('ru-RU')}
+                </span>
+                <button
+                  onClick={() => openEditModal(newsItem, 'news')}
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAnalyticsTab = () => (
+    <div className="space-y-8">
+      <h3 className="text-2xl font-bold text-white">Аналитика</h3>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Топ кадетов по баллам</h4>
+          <div className="space-y-3">
+            {cadets
+              .sort((a, b) => b.total_score - a.total_score)
+              .slice(0, 5)
+              .map((cadet, index) => (
+                <div key={cadet.id} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-yellow-400 font-bold">#{index + 1}</span>
+                    <span className="text-white">{cadet.name}</span>
+                  </div>
+                  <span className="text-blue-300 font-semibold">{cadet.total_score}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="card-hover p-6">
+          <h4 className="text-xl font-bold text-white mb-4">Статистика по взводам</h4>
+          <div className="space-y-3">
+            {Array.from(new Set(cadets.map(c => c.platoon)))
+              .map(platoon => {
+                const platoonCadets = cadets.filter(c => c.platoon === platoon);
+                const avgScore = platoonCadets.reduce((sum, c) => sum + c.total_score, 0) / platoonCadets.length;
+                return (
+                  <div key={platoon} className="flex items-center justify-between">
+                    <span className="text-white">{platoon} взвод</span>
+                    <div className="text-right">
+                      <div className="text-blue-300 font-semibold">{Math.round(avgScore)} ср. балл</div>
+                      <div className="text-blue-400 text-sm">{platoonCadets.length} кадетов</div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview': return renderOverviewTab();
+      case 'cadets': return renderCadetsTab();
+      case 'tasks': return renderTasksTab();
+      case 'news': return renderNewsTab();
+      case 'analytics': return renderAnalyticsTab();
+      default: return renderOverviewTab();
+    }
+  };
 
   return (
     <motion.div
@@ -214,251 +539,90 @@ const TasksPage: React.FC = () => {
       
       <div className="relative z-20 section-padding">
         <div className="container-custom">
-        {/* Header */}
-        <motion.div
-          variants={fadeInUp}
-          initial="hidden"
-          animate="visible"
-          className="text-center mb-16"
-        >
-          <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
-            Задания
-          </h1>
-          <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
-          <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
-            Выполняйте задания и получайте баллы рейтинга
-          </p>
-        </motion.div>
-
-        {/* Loading State */}
-        {loading && (
-          <div>
-            <LoadingSpinner message="Загрузка заданий..." />
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-4">{error}</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="btn-primary"
-            >
-              Попробовать снова
-            </button>
-          </div>
-        )}
-
-        {/* Categories */}
-        {!loading && !error && (
-          <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
-        >
-          {categories.map(({ key, name, icon: Icon, color }) => (
-            <motion.button
-              key={key}
-              variants={staggerItem}
-              whileHover={{ scale: 1.05, y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setSelectedCategory(key)}
-              className={`relative overflow-hidden p-6 rounded-2xl transition-all duration-500 shadow-2xl ${
-                selectedCategory === key
-                  ? 'scale-105 shadow-blue-500/25'
-                  : 'opacity-80 hover:opacity-100'
-              }`}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${color} ${
-                selectedCategory === key ? 'opacity-100' : 'opacity-60'
-              }`}></div>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative flex flex-col items-center text-white">
-                <Icon className="h-10 w-10 mb-3" />
-                <span className="font-bold text-base">{name}</span>
-              </div>
-            </motion.button>
-          ))}
-        </motion.div>
-        )}
-
-        {/* Filters and Sort */}
-        {!loading && !error && (
+          {/* Header */}
           <motion.div
             variants={fadeInUp}
             initial="hidden"
             animate="visible"
-            className="glass-effect rounded-2xl p-8 mb-12 shadow-2xl"
+            className="text-center mb-16"
           >
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-              <div className="flex items-center space-x-4">
-                <Filter className="h-6 w-6 text-blue-300" />
-                <span className="text-white font-bold text-lg">Фильтры:</span>
-                <div className="flex items-center space-x-2">
-                  <span className="text-blue-200 text-base font-semibold">Всего заданий: {filteredTasks.length}</span>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <SortAsc className="h-6 w-6 text-blue-300" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="input px-4 py-2 text-base"
-                >
-                  <option value="deadline">По дедлайну</option>
-                  <option value="points">По баллам</option>
-                  <option value="difficulty">По сложности</option>
-                </select>
-              </div>
+            <h1 className="text-6xl md:text-7xl font-display font-black mb-6 text-gradient text-glow">
+              Панель администратора
+            </h1>
+            <div className="w-32 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full mb-6"></div>
+            <p className="text-2xl text-white/90 max-w-3xl mx-auto text-shadow text-balance">
+              Управление системой рейтинга кадетов
+            </p>
+          </motion.div>
+
+          {/* Loading State */}
+          {loading && (
+            <div>
+              <LoadingSpinner message="Загрузка данных..." />
             </div>
-          </motion.div>
-        )}
+          )}
 
-        {/* Tasks Grid */}
-        {!loading && !error && (
-          <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-        >
-          {sortedTasks.map((task, index) => (
-            <motion.div
-              key={task.id}
-              variants={staggerItem}
-              whileHover={{ scale: 1.05, y: -10 }}
-              className={`card-hover p-8 border transition-all duration-500 shadow-2xl ${
-                task.userStatus === 'completed' 
-                  ? 'border-green-400/50 bg-green-400/5' 
-                  : task.userStatus === 'taken'
-                  ? 'border-yellow-400/50 bg-yellow-400/5'
-                  : 'border-white/20 hover:border-yellow-400/50'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <div className={`px-3 py-2 rounded-full text-sm font-bold ${getStatusColor(task.userStatus)}`}>
-                    {getStatusText(task.userStatus)}
-                  </div>
-                  <div className={`px-3 py-2 rounded-full text-sm font-bold ${getDifficultyColor(task.difficulty)}`}>
-                    {task.difficulty === 'easy' ? 'Легко' : task.difficulty === 'medium' ? 'Средне' : 'Сложно'}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-1 text-yellow-400">
-                  <Star className="h-6 w-6" />
-                  <span className="font-black text-lg">{task.points}</span>
-                </div>
-              </div>
+          {/* Error State */}
+          {error && (
+            <div className="text-center py-12">
+              <p className="text-red-400 mb-4">{error}</p>
+              <button 
+                onClick={fetchAllData}
+                className="btn-primary"
+              >
+                Попробовать снова
+              </button>
+            </div>
+          )}
 
-              <h3 className="text-2xl font-bold text-white mb-4 line-clamp-2 text-shadow">{task.title}</h3>
-              <p className="text-blue-200 mb-6 line-clamp-3 text-base">{task.description}</p>
-
-              <div className="flex items-center justify-between text-blue-300 mb-6">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5" />
-                  <span className="font-semibold">До {new Date(task.deadline).toLocaleDateString('ru-RU')}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5" />
-                  <span className="font-semibold">
-                    {Math.ceil((new Date(task.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} дн.
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex space-x-2">
-                {task.userStatus === 'available' && (
-                  <button
-                    onClick={() => handleTakeTask(task.id)}
-                    className="flex-1 btn-primary"
+          {/* Tabs */}
+          {!loading && !error && (
+            <>
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+                className="flex flex-wrap justify-center gap-4 mb-12"
+              >
+                {[
+                  { key: 'overview', name: 'Обзор', icon: TrendingUp },
+                  { key: 'cadets', name: 'Кадеты', icon: Users },
+                  { key: 'tasks', name: 'Задания', icon: BookOpen },
+                  { key: 'news', name: 'Новости', icon: Award },
+                  { key: 'analytics', name: 'Аналитика', icon: Target },
+                ].map(({ key, name, icon: Icon }) => (
+                  <motion.button
+                    key={key}
+                    variants={staggerItem}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab(key as any)}
+                    className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                      activeTab === key
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
+                        : 'bg-white/10 text-blue-300 hover:bg-white/20 hover:text-white'
+                    }`}
                   >
-                    Взять задание
-                  </button>
-                )}
-                {task.userStatus === 'taken' && (
-                  <>
-                    <button
-                      onClick={() => setSelectedTask(task)}
-                      className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-3 rounded-xl font-bold transition-all duration-500 hover:scale-105 shadow-lg"
-                    >
-                      Сдать
-                    </button>
-                    <button
-                      onClick={() => handleAbandonTask(task.id)}
-                      className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-xl font-bold transition-all duration-500 hover:scale-105 shadow-lg"
-                    >
-                      Отказаться
-                    </button>
-                  </>
-                )}
-                {task.userStatus === 'completed' && (
-                  <div className="flex-1 flex items-center justify-center text-green-400 font-bold text-lg">
-                    <Trophy className="h-6 w-6 mr-2" />
-                    Выполнено
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </motion.div>
-        )}
+                    <Icon className="h-5 w-5" />
+                    <span>{name}</span>
+                  </motion.button>
+                ))}
+              </motion.div>
 
-        {/* Submit Task Modal */}
-        {selectedTask && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setSelectedTask(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="glass-effect rounded-3xl max-w-3xl w-full p-12 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-4xl font-display font-black text-white mb-6 text-shadow">Сдача задания</h2>
-              <h3 className="text-2xl text-blue-200 mb-8 font-semibold">{selectedTask.title}</h3>
-              
-              <div className="mb-8">
-                <label className="block text-white font-bold text-lg mb-4">
-                  Отчет о выполнении:
-                </label>
-                <textarea
-                  value={submissionText}
-                  onChange={(e) => setSubmissionText(e.target.value)}
-                  placeholder="Опишите, как вы выполнили задание..."
-                  rows={8}
-                  className="input resize-none text-lg"
-                />
-              </div>
-
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => handleSubmitTask(selectedTask.id)}
-                  disabled={!submissionText.trim()}
-                  className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-4 rounded-xl font-bold text-lg transition-all duration-500 hover:scale-105 shadow-lg"
-                >
-                  Отправить на проверку
-                </button>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-bold text-lg transition-all duration-500 hover:scale-105 shadow-lg"
-                >
-                  Отмена
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+              {/* Tab Content */}
+              <motion.div
+                variants={staggerContainer}
+                initial="hidden"
+                animate="visible"
+              >
+                {renderTabContent()}
+              </motion.div>
+            </>
+          )}
         </div>
       </div>
     </motion.div>
   );
 };
 
-export default TasksPage;
+export default AdminPage;
