@@ -70,6 +70,29 @@ export interface Score {
   updated_at?: string;
 }
 
+export interface AutoAchievement {
+  id: string;
+  title: string;
+  description: string;
+  icon?: string;
+  color?: string;
+  requirement_type: string;
+  requirement_value: number;
+  requirement_category?: string;
+  created_at?: string;
+}
+
+export interface CadetAchievement {
+  id: string;
+  cadet_id: string;
+  achievement_id?: string;
+  auto_achievement_id?: string;
+  awarded_date?: string;
+  awarded_by?: string;
+  achievement?: Achievement;
+  auto_achievement?: AutoAchievement;
+}
+
 // Data fetching functions
 export const getCadets = async (): Promise<Cadet[]> => {
   const { data, error } = await supabase
@@ -122,6 +145,20 @@ export const getAchievements = async (): Promise<Achievement[]> => {
 
   if (error) {
     console.error('Error fetching achievements:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const getAutoAchievements = async (): Promise<AutoAchievement[]> => {
+  const { data, error } = await supabase
+    .from('auto_achievements')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching auto achievements:', error);
     throw error;
   }
 
