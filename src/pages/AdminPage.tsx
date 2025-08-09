@@ -146,6 +146,20 @@ const AdminPage: React.FC = () => {
     }
   };
 
+  const handleDeleteCadet = async (cadetId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этого кадета? Это действие нельзя отменить.')) {
+      return;
+    }
+
+    try {
+      await deleteCadetByAdmin(cadetId);
+      await fetchAllData(); // Обновляем список кадетов
+    } catch (error) {
+      console.error('Error deleting cadet:', error);
+      alert('Ошибка при удалении кадета');
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
