@@ -184,6 +184,101 @@ export const getCadetAchievements = async (cadetId: string): Promise<CadetAchiev
   return data || [];
 };
 
+export const getCadetScores = async (cadetId: string): Promise<Score | null> => {
+  const { data, error } = await supabase
+    .from('scores')
+    .select('*')
+    .eq('cadet_id', cadetId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching cadet scores:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export interface ScoreHistory {
+  id: string;
+  cadet_id: string;
+  category: 'study' | 'discipline' | 'events';
+  points: number;
+  description: string;
+  awarded_by?: string;
+  created_at: string;
+}
+
+export const getScoreHistory = async (cadetId: string): Promise<ScoreHistory[]> => {
+  const { data, error } = await supabase
+    .from('score_history')
+    .select('*')
+    .eq('cadet_id', cadetId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching score history:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+export const addCadetByAdmin = async (cadetData: {
+  name: string;
+  email: string;
+  password: string;
+  platoon: string;
+  squad: number;
+  avatar_url?: string;
+}): Promise<void> => {
+  // Call the edge function to create cadet with auth user
+  const response = await fetch(`${supabaseUrl}/functions/v1/create-cadet`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify(cadetData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to create cadet');
+  }
+
+  const result = await response.json();
+  return result.cadet;
+};
+
+export const updateCadetByAdmin = async (id: string, cadetData: Partial<Cadet>): Promise<Cadet> => {
+  const { data, error } = await supabase
+    .from('cadets')
+    .update(cadetData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating cadet:', error);
+    throw error;
+  }
+
+  return data;
+};
+
+export const deleteCadet = async (id: string): Promise<void> => {
+  const { error } = await supabase
+    .from('cadets')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting cadet:', error);
+    throw error;
+  }
+};
+
 export const getCadetById = async (id: string): Promise<Cadet | null> => {
   const { data, error } = await supabase
     .from('cadets')
