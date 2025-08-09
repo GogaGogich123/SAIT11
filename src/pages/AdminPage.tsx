@@ -127,7 +127,15 @@ const AdminPage: React.FC = () => {
   const handleSaveCadet = async (cadetData: any) => {
     try {
       setIsSubmitting(true);
-      await addCadetByAdmin(cadetData);
+      
+      if (editingItem) {
+        // Редактирование существующего кадета
+        await updateCadetByAdmin(editingItem.id, cadetData);
+      } else {
+        // Создание нового кадета
+        await addCadetByAdmin(cadetData);
+      }
+      
       await fetchAllData(); // Обновляем список кадетов
       closeModal();
     } catch (error) {
@@ -346,8 +354,16 @@ const AdminPage: React.FC = () => {
                 <button
                   onClick={() => openEditModal(cadet, 'cadet')}
                   className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать кадета"
                 >
                   <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteCadet(cadet.id)}
+                  className="text-red-400 hover:text-red-300 ml-2"
+                  title="Удалить кадета"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -386,6 +402,7 @@ const AdminPage: React.FC = () => {
                 <button
                   onClick={() => openEditModal(task, 'task')}
                   className="text-blue-400 hover:text-blue-300"
+                  title="Редактировать задание"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
