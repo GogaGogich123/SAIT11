@@ -165,6 +165,25 @@ export const getAutoAchievements = async (): Promise<AutoAchievement[]> => {
   return data || [];
 };
 
+export const getCadetAchievements = async (cadetId: string): Promise<CadetAchievement[]> => {
+  const { data, error } = await supabase
+    .from('cadet_achievements')
+    .select(`
+      *,
+      achievement:achievements(*),
+      auto_achievement:auto_achievements(*)
+    `)
+    .eq('cadet_id', cadetId)
+    .order('awarded_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching cadet achievements:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
 export const getCadetById = async (id: string): Promise<Cadet | null> => {
   const { data, error } = await supabase
     .from('cadets')
