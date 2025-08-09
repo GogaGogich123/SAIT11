@@ -294,49 +294,6 @@ export const getCadetById = async (id: string): Promise<Cadet | null> => {
   return data;
 };
 
-export const addCadetByAdmin = async (cadetData: Partial<Cadet>): Promise<Cadet> => {
-  const { data, error } = await supabase
-    .from('cadets')
-    .insert([cadetData])
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error adding cadet:', error);
-    throw error;
-  }
-
-  return data;
-};
-
-export const updateCadetByAdmin = async (id: string, cadetData: Partial<Cadet>): Promise<Cadet> => {
-  const { data, error } = await supabase
-    .from('cadets')
-    .update(cadetData)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating cadet:', error);
-    throw error;
-  }
-
-  return data;
-};
-
-export const deleteCadet = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('cadets')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting cadet:', error);
-    throw error;
-  }
-};
-
 // Authentication functions
 export const signUp = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signUp({
