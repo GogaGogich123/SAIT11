@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .from('cadets')
           .select('*')
           .eq('auth_user_id', authData.user.id)
-          .single();
+          .maybeSingle();
 
         if (!cadetError && cadetData) {
           setUser({
@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             cadetId: cadetData.id
           });
           return true;
-        } else if (cadetError && cadetError.code === 'PGRST116') {
+        } else if (!cadetData) {
           // No cadet found for this auth user, fallback to mock login
           return mockLogin(email, password);
         }

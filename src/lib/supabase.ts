@@ -261,6 +261,4 @@ export const addCadetByAdmin = async (cadetData: {
   if (data?.error) {
     throw new Error(data.error);
   }
-
-  return data;
 };

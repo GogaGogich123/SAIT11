@@ -36,6 +36,7 @@ const AddEditCadetModal: React.FC<AddEditCadetModalProps> = ({
     avatar_url: ''
   });
   const [errors, setErrors] = useState<Partial<CadetFormData>>({});
+  const [apiError, setApiError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
   const platoons = ['7-1', '7-2', '8-1', '8-2', '9-1', '9-2', '10-1', '10-2', '11-1', '11-2'];
@@ -63,6 +64,7 @@ const AddEditCadetModal: React.FC<AddEditCadetModalProps> = ({
       });
     }
     setErrors({});
+    setApiError('');
   }, [isEditing, cadetData, isOpen]);
 
   const validateForm = (): boolean => {
@@ -105,6 +107,7 @@ const AddEditCadetModal: React.FC<AddEditCadetModalProps> = ({
       onClose();
     } catch (error) {
       console.error('Error saving cadet:', error);
+      setApiError(error instanceof Error ? error.message : 'Произошла ошибка при сохранении');
     } finally {
       setIsLoading(false);
     }
@@ -122,6 +125,11 @@ const AddEditCadetModal: React.FC<AddEditCadetModalProps> = ({
         ...prev,
         [field]: undefined
       }));
+    }
+    
+    // Очищаем API ошибку при изменении любого поля
+    if (apiError) {
+      setApiError('');
     }
   };
 
@@ -160,6 +168,13 @@ const AddEditCadetModal: React.FC<AddEditCadetModalProps> = ({
               <X className="h-8 w-8" />
             </button>
           </div>
+
+          {/* API Error Display */}
+          {apiError && (
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-500 rounded-xl">
+              <p className="text-red-400 font-semibold text-center">{apiError}</p>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit}>
