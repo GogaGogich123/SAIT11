@@ -216,6 +216,73 @@ const AdminPage: React.FC = () => {
         isEditing={!!editingItem}
       />
 
+      {/* Temporary modals for other types - TODO: implement proper modals */}
+      {showAddModal && modalType === 'task' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление заданий
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления заданий будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {showAddModal && modalType === 'news' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeModal}
+        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="glass-effect rounded-3xl max-w-2xl w-full p-8 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h2 className="text-3xl font-display font-black text-white mb-4">
+                Добавление новостей
+              </h2>
+              <p className="text-blue-200 mb-6">
+                Функция добавления новостей будет реализована в следующих обновлениях
+              </p>
+              <button
+                onClick={closeModal}
+                className="btn-primary"
+              >
+                Понятно
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
       {/* Recent Activity */}
       <div className="card-hover p-8">
         <h3 className="text-2xl font-bold text-white mb-6">Последняя активность</h3>
